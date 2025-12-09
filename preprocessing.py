@@ -1,11 +1,28 @@
+from pathlib import Path
 from modules.eeg_preprocessing import preprocess_subject
-from modules.eeg_epoching import epoch_rest_state
 
+# load subject list from file
+with open("subjects.txt", "r") as f:
+    subjects = [line.strip() for line in f if line.strip()]
+
+# output dir for preprocessed continuous data
+preproc_dir = Path("derivatives/eeg_preproc")
+preproc_dir.mkdir(parents=True, exist_ok=True)
 
 base_dir = "EEG_MPILMBB_LEMON/EEG_Raw_BIDS_ID"
-subjects = ["sub-032301"]
 
 for sub in subjects:
+
+    clean_path = preproc_dir / f"{sub}_clean-raw.fif"
+    ica_path   = preproc_dir / f"{sub}_ica.fif"
+
+    # --- SKIP IF BOTH FILES ALREADY EXIST ---
+    if clean_path.exists() and ica_path.exists():
+        print(f"[SKIP] {sub}: already processed.")
+        continue
+
+    print(f"[PROCESS] {sub}...")
+
     raw_filt, ica, raw_clean, used_exclude = preprocess_subject(
         base_dir=base_dir,
         subject_id=sub,
@@ -14,18 +31,8 @@ for sub in subjects:
 
     print(f"{sub}: excluded ICA components: {used_exclude}")
 
-    raw_clean.save(f"derivatives/eeg_preproc/{sub}_clean-raw.fif", overwrite=True)
-    ica.save(f"derivatives/eeg_preproc/{sub}_ica.fif")
+    # save cleaned continuous data and ICA model
+    raw_clean.save(clean_path, overwrite=True)
+    ica.save(ica_path)
 
-
-    # Epoching
-    epochs_eo, epochs_ec, logs = epoch_rest_state(
-        raw_clean,
-        epoch_length=4.0,
-        apply_ar=True
-    )
-
-    print(f"{sub}: EO epochs = {len(epochs_eo)}, EC epochs = {len(epochs_ec)}")
-
-    epochs_eo.save(f"derivatives/eeg_epochs/{sub}_eo-epo.fif", overwrite=True)
-    epochs_ec.save(f"derivatives/eeg_epochs/{sub}_ec-epo.fif", overwrite=True)
+    print(f"[DONE] {sub} saved.")

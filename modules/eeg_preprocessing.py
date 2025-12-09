@@ -147,9 +147,9 @@ def preprocess_subject(base_dir: str | Path,
 
     raw_filt = apply_bandpass(raw_notch, l_freq=0.1, h_freq=45.0)
 
-    raw_ica = raw_notch.copy()
+    raw_ica = raw_filt.copy()
     raw_ica.filter(l_freq=1.0, h_freq=None)
-    ica = fit_ica(raw_ica, n_components=0.99, random_state=42, method="fastica")
+    ica = fit_ica(raw_ica, n_components=0.9999, random_state=42, method="fastica")
 
     if ica_exclude is None:
         eog_inds, scores = ica.find_bads_eog(raw_filt, ch_name="VEOG")
