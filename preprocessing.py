@@ -5,6 +5,7 @@ from modules.eeg_preprocessing import preprocess_subject
 with open("subjects.txt", "r") as f:
     subjects = [line.strip() for line in f if line.strip()]
 
+
 # output dir for preprocessed continuous data
 preproc_dir = Path("derivatives/eeg_preproc")
 preproc_dir.mkdir(parents=True, exist_ok=True)

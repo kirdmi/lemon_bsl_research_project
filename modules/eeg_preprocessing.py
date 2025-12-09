@@ -160,3 +160,5 @@ def preprocess_subject(base_dir: str | Path,
     raw_clean = apply_ica_and_get_clean(raw_filt, ica, exclude=used_exclude)
 
     return raw_filt, ica, raw_clean, used_exclude
+
+
