@@ -7,28 +7,22 @@ import pandas as pd
 import mne
 from specparam import SpectralModel
 
-# -----------------------------
-# CONFIG
-# -----------------------------
-PREPROC_DIR = Path("derivatives/eeg_preproc")  # где лежат *_clean-raw.fif
+PREPROC_DIR = Path("derivatives/eeg_preproc")
 PATTERN = "*_clean-raw.fif"
 
-# Частотный диапазон PSD и фитта 1/f
 FMIN_PSD, FMAX_PSD = 1.0, 45.0
-FMIN_FIT, FMAX_FIT = 2.0, 40.0  # обычно безопаснее для slope
+FMIN_FIT, FMAX_FIT = 2.0, 40.0
 N_FFT = 4096
 N_OVERLAP = 2048
 
-# ROI (можешь менять под свою схему каналов)
 ROI = {
-    "global": None,  # None = все EEG-каналы
+    "global": None,
     "frontal": ["Fp1", "Fp2", "Fz", "F3", "F4", "F7", "F8"],
     "central": ["Cz", "C3", "C4"],
     "parietal": ["Pz", "P3", "P4"],
     "occipital": ["Oz", "O1", "O2"],
 }
 
-# Диапазоны для поиска “основного” пика
 BANDS = {
     "theta": (4, 8),
     "alpha": (8, 12),
@@ -41,7 +35,6 @@ def subject_from_filename(path: Path) -> str:
     return m.group(1) if m else path.stem.replace("_clean-raw", "")
 
 def compute_mean_psd(raw: mne.io.BaseRaw, picks: list[int], fmin: float, fmax: float) -> tuple[np.ndarray, np.ndarray]:
-    # PSD по каналам -> усредняем по каналам (и только EEG)
     psd = raw.compute_psd(
         method="welch",
         fmin=fmin,
@@ -85,7 +78,6 @@ def fit_aperiodic_and_peaks(freqs: np.ndarray, psd: np.ndarray, fit_range: tuple
     if peaks.ndim == 1:
         peaks = peaks.reshape(0, 3) if peaks.size == 0 else peaks.reshape(1, 3)
 
-    # строгая проверка формы
     if peaks.size and (peaks.shape[1] != 3):
         peaks = np.empty((0, 3), dtype=float)
 
@@ -96,10 +88,6 @@ def fit_aperiodic_and_peaks(freqs: np.ndarray, psd: np.ndarray, fit_range: tuple
     }
 
 def pick_peak_in_band(peaks: np.ndarray, band: tuple[float, float]) -> tuple[float | None, float | None, float | None]:
-    """
-    Выбираем “главный” пик в диапазоне (по максимальному PW).
-    Возвращаем (CF, PW, BW) или (None, None, None)
-    """
     if peaks is None or len(peaks) == 0:
         return None, None, None
 
@@ -108,7 +96,6 @@ def pick_peak_in_band(peaks: np.ndarray, band: tuple[float, float]) -> tuple[flo
     if len(in_band) == 0:
         return None, None, None
 
-    # главный пик = максимальная мощность пика над фоном (PW)
     idx = np.argmax(in_band[:, 1])
     cf, pw, bw = in_band[idx]
     return float(cf), float(pw), float(bw)
@@ -120,9 +107,8 @@ def resolve_roi_picks(raw: mne.io.BaseRaw, roi_channels: list[str] | None) -> li
 
     present = [ch for ch in roi_channels if ch in raw.ch_names]
     if len(present) == 0:
-        return []  # ROI отсутствует у данного субъекта
+        return []
     picks = mne.pick_channels(raw.ch_names, include=present)
-    # пересечение с EEG picks
     picks = [p for p in picks if p in set(eeg_picks)]
     return picks
 
@@ -130,8 +116,6 @@ def process_file(path: Path) -> list[dict]:
     subject = subject_from_filename(path)
 
     raw = mne.io.read_raw_fif(path, preload=False, verbose="ERROR")
-    # Если reference уже применён в preprocessing — хорошо. Если нет, можно включить:
-    # raw.set_eeg_reference("average", projection=True)
 
     rows: list[dict] = []
 
@@ -149,10 +133,9 @@ def process_file(path: Path) -> list[dict]:
             "subject": subject,
             "roi": roi_name,
             "aperiodic_offset": fit["offset"],
-            "aperiodic_exponent": fit["exponent"],  # это и есть 1/f slope (в терминах SpecParam)
+            "aperiodic_exponent": fit["exponent"],
         }
 
-        # Пики по диапазонам
         for band_name, band_rng in BANDS.items():
             cf, pw, bw = pick_peak_in_band(peaks, band_rng)
             out[f"{band_name}_cf_hz"] = cf
